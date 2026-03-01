@@ -1,4 +1,4 @@
-# 🏦 TestingBank - Automated Banking System Testing
+# 🏦 BankAutoTest - Automated Banking System Testing
 
 ![Selenium](https://img.shields.io/badge/-Selenium-43B02A?style=for-the-badge&logo=selenium&logoColor=white)
 ![Python](https://img.shields.io/badge/-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -8,6 +8,11 @@ An advanced automated testing framework designed for a Map-based Banking Managem
 
 ## 📺 Video Demo
 Watch the "Flying Head" automation logic in action:
+
+
+https://github.com/user-attachments/assets/77fb6d29-ecea-4ab2-877f-823e9383c90a
+
+
 
 > [!TIP]
 > The video above demonstrates the full automated flow from login to marker validation.
@@ -31,5 +36,5 @@ Watch the "Flying Head" automation logic in action:
 ### Installation
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/thanh22082006151-dotcom/TestingBank-.git](https://github.com/thanh22082006151-dotcom/TestingBank-.git)
-   cd TestingBank-
+   git clone [https://github.com/thanhnguyen221/BankAutoTest.git](https://github.com/thanhnguyen221/BankAutoTest.git)
+   cd BankAutoTest
