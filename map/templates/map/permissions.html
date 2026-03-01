@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phân quyền người dùng</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --ink:#111827; --muted:#6b7280; --primary:#2563eb; --border:#e5e7eb;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:var(--ink);}
+    header{padding:18px 20px 8px;}
+    h1{margin:0 0 6px; font-size:22px;}
+    p.sub{margin:0; color:var(--muted); font-size:13px}
+    .wrap{max-width:1100px; margin:10px auto 28px; padding:0 16px;}
+    .bar{
+      background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 12px; display:flex; gap:10px; align-items:center;
+    }
+    .bar .btn{ padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; font-weight:600;}
+    .bar .btn-primary{ background:var(--primary); color:#fff; border-color:var(--primary); }
+    .bar input{flex:1; padding:10px 12px; border:1px solid var(--border); border-radius:10px; outline:none; background:#fff;}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:12px; margin-top:12px; overflow:hidden;}
+    .card header{padding:12px 14px; border-bottom:1px solid var(--border);}
+    table{width:100%; border-collapse:collapse; font-size:14px;}
+    th, td{border-bottom:1px solid var(--border); padding:10px 12px; text-align:left; vertical-align:middle;}
+    tbody tr:hover{background:#f9fafb;}
+    .pill{display:inline-block; padding:2px 8px; border-radius:999px; background:#eef2ff; border:1px solid var(--border); font-size:12px;}
+    .muted{color:var(--muted)}
+    .right{display:flex; gap:8px; justify-content:flex-end; align-items:center;}
+    .btn{ padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; font-weight:600;}
+    .btn-danger{ background:#ef4444; color:#fff; border-color:#ef4444;}
+    .btn-primary{ background:var(--primary); color:#fff; border-color:var(--primary);}
+    .btn[disabled]{opacity:.6; cursor:not-allowed;}
+    .msg{margin-top:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Phân quyền người dùng</h1>
+    <p class="sub">Trang dành cho quản trị viên để bật/tắt quyền <b>superuser</b>. Chỉ hiển thị danh sách từ Django <code>auth_user</code>.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="bar">
+      <button class="btn" onclick="location.href='{% url 'map_view' %}'">← Quay lại bản đồ</button>
+      <input id="q" type="text" placeholder="Tìm username / họ tên / email…" />
+      <span class="muted">Tổng: <span class="pill">{{ users|length }}</span></span>
+    </div>
+
+    {% if messages %}
+      {% for m in messages %}
+        <div class="msg">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card">
+      <header><strong>Danh sách người dùng</strong></header>
+      <div style="overflow:auto">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th style="width:72px">ID</th>
+              <th>Username</th>
+              <th>Họ tên</th>
+              <th>Email</th>
+              <th style="width:120px">Superuser</th>
+              <th style="width:220px" class="right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td>{{ u.id }}</td>
+              <td>{{ u.username }}</td>
+              <td>{{ u.first_name }} {{ u.last_name }}</td>
+              <td>{{ u.email }}</td>
+              <td>{% if u.is_superuser %}✅{% else %}❌{% endif %}</td>
+              <td class="right">
+                <form method="post" action="{% url 'manage_permissions' %}" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="user_id" value="{{ u.id }}" />
+                  {% if u.is_superuser %}
+                    <button type="submit" class="btn btn-danger" {% if request.user.id == u.id %}disabled title="Không tự hạ quyền chính mình"{% endif %}>
+                      Bỏ Superuser
+                    </button>
+                  {% else %}
+                    <button type="submit" class="btn btn-primary">
+                      Cấp Superuser
+                    </button>
+                  {% endif %}
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="muted">Không có người dùng nào.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="muted" style="margin-top:10px">
+      Lưu ý: Superuser có toàn quyền trong admin và hệ thống. Hạn chế tự hạ quyền chính mình để tránh mất quyền truy cập.
+    </p>
+  </div>
+
+  <script>
+    // Tìm kiếm nhanh phía client
+    const q = document.getElementById('q');
+    const tbl = document.getElementById('tbl').querySelector('tbody');
+    q.addEventListener('input', function(){
+      const t = this.value.trim().toLowerCase();
+      tbl.querySelectorAll('tr').forEach(tr=>{
+        const cells = Array.from(tr.children).slice(1,4) // username, họ tên, email
+          .map(td=>td.textContent.toLowerCase()).join(' ');
+        tr.style.display = cells.includes(t) ? '' : 'none';
+      });
+    });
+  </script>
+</body>
+</html>

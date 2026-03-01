@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Quản lý điểm trên bản đồ</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+<!-- Leaflet Routing Machine -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+
+<!-- Lottie -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js" referrerpolicy="no-referrer"></script>
+
+<style>
+  :root{
+  --bg:#f6f8fb; --card:#ffffff; --ink:#1f2937; --muted:#6b7280; --primary:#2563eb;
+  --border:#e5e7eb; --radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0; font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:var(--ink);}
+header{padding:18px 20px 8px;}
+h1{margin:0 0 6px; font-size:22px;}
+p.sub{margin:0; color:var(--muted); font-size:13px}
+
+/* Toolbar */
+.toolbar{
+  display:grid; grid-template-columns: 1fr auto auto auto auto auto auto; gap:10px; align-items:center;
+  background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin:10px 20px 0;
+}
+@media (max-width:1100px){ .toolbar{ grid-template-columns: 1fr; } }
+.toolbar .input, .toolbar select{
+  padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; outline:none;
+}
+.toolbar .btn{
+  padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer; font-weight:600;
+}
+.toolbar .btn-primary{ background:var(--primary); color:#fff; border-color:var(--primary); }
+.toolbar .seg{display:flex; gap:6px; flex-wrap:wrap}
+.seg .toggle{padding:8px 10px; border:1px solid var(--border); border-radius:999px; cursor:pointer; background:#fff; font-weight:600;}
+.seg .toggle.active{background:#eef2ff; border-color:#c7d2fe; color:#1e3a8a;}
+.pill{display:inline-block; padding:2px 8px; border-radius:999px; background:#eef2ff; border:1px solid var(--border); font-size:12px; margin-left:6px;}
+
+/* ======= Layout ======= */
+#top-row{
+  display:grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(520px, 1.4fr) minmax(320px, 0.9fr);
+  gap:16px; align-items:start; padding:10px 20px 12px;
+}
+@media (max-width: 1200px){ #top-row{ grid-template-columns: 1fr; } }
+
+/* Viewer mode: bỏ cột trái, map tràn qua */
+body[data-viewer="1"] #top-row{
+  grid-template-columns: minmax(520px, 1fr) minmax(320px, 0.9fr);
+}
+body[data-viewer="1"] .left{ display:none !important; }   /* Ẩn hoàn toàn form khi là người dùng */
+
+/* Map */
+#map{
+  width:100%; aspect-ratio:1/1; height:auto; min-height:420px;
+  border-radius:var(--radius); background:#e8f0fe; border:1px solid transparent;
+  box-shadow:0 10px 30px rgba(23,26,31,.16); position:relative;
+}
+#map::after {
+  content: ""; position: absolute; inset: -1px; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+}
+
+/* Cards & Forms */
+.tabs{display:flex; gap:10px; margin:14px 0;}
+.tab-btn{ padding:10px 14px; border:1px solid var(--border); border-radius:999px; background:#fff; cursor:pointer; font-weight:600;}
+.tab-btn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+.grid{display:grid; grid-template-columns:1fr; gap:16px;}
+.card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.04); overflow:hidden;}
+.card h3{margin:0; padding:14px 16px; border-bottom:1px solid var(--border); background:#fafafa;}
+.card .body{padding:14px 16px;}
+.row{display:flex; gap:12px; align-items:center; margin:8px 0;}
+.row label{width:130px; font-weight:600; color:#374151;}
+.row input[type="text"], .row select, .row textarea{ flex:1; padding:10px 12px; border:1px solid var(--border); border-radius:10px; outline:none; background:#fff; }
+.row textarea{min-height:70px; resize:vertical;}
+.actions{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.btn-primary{background:var(--primary); color:#fff; border-color:var(--primary);}
+.btn-danger{background:#ef4444; color:#fff; border-color:#ef4444;}
+.btn-ghost{background:#fff;}
+.btn:active{transform:translateY(1px)}
+.thumb{width:180px; height:120px; border-radius:10px; object-fit:cover; border:1px solid var(--border); background:#f3f4f6;}
+.thumb-wrap{display:flex; align-items:center; gap:12px;}
+.panel{display:none;} .panel.active{display:block;}
+
+/* Detail (cột phải) */
+.detail .head{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); background:#fafafa;}
+.tag{padding:4px 8px; border-radius:999px; font-size:12px; font-weight:700; color:#fff;}
+.tag.bank{background:#2563eb;} .tag.branch{background:#10b981;} .tag.atm{background:#f59e0b;}
+.detail .body{padding:14px; display:flex; gap:16px; flex-wrap:wrap;}
+.detail img.big{width:100%; height:auto; max-height:460px; object-fit:cover; border-radius:12px; border:1px solid var(--border); background:#f3f4f6;}
+.kv{min-width:260px;} .kv .row{margin:6px 0;} .kv .k{font-weight:700; margin-right:6px;}
+#detail-card{ position:sticky; top:12px; }
+
+/* Results */
+#results{ margin:10px 20px 0; display:none; position:relative; }
+#results .section{ background:#fff; border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin-top:8px; }
+#results h4{ margin:0 0 6px; font-size:14px; color:#111827;}
+#results .close{ position:absolute; right:14px; top:6px; border:1px solid var(--border); background:#fff; border-radius:999px; padding:4px 8px; cursor:pointer; }
+.list{display:grid; gap:6px;}
+.item{padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:#fff; cursor:pointer;}
+.item:hover{background:#f9fafb;}
+.item .sub{font-size:12px; color:#6b7280;}
+.dist{font-size:12px; color:#1f2937; font-weight:700; margin-left:8px;}
+
+/* Modal Stats — LUÔN nổi trên map */
+.modal{
+  position:fixed; inset:0; display:none; place-items:center;
+  background:rgba(17,24,39,.35);
+  z-index:3000;                    /* ↑ tăng cao để không bao giờ bị map đè */
+}
+.modal .box{width:min(1100px, 96vw); max-height:90vh; overflow:auto; background:#fff; border-radius:14px; border:1px solid var(--border); box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal header{display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border);}
+.tabs2{display:flex; gap:8px; padding:10px 12px;}
+.tabs2 .btn{padding:8px 10px; border:1px solid var(--border); border-radius:999px; background:#fff; cursor:pointer; font-weight:600;}
+.tabs2 .btn.active{background:#eef2ff; border-color:#c7d2fe; color:#1e3a8a;}
+.table-wrap{padding:0 12px 16px;}
+table{width:100%; border-collapse:collapse; font-size:14px;}
+th, td{border-bottom:1px solid var(--border); padding:8px 10px; text-align:left;}
+tbody tr{cursor:pointer;} tbody tr:hover{background:#f9fafb;}
+
+/* Khi mở modal: mờ nền + khoá click map/control */
+body.is-modal-open #top-row,
+body.is-modal-open .toolbar{ filter: blur(1px) brightness(.95); }
+body.is-modal-open .gm-style,
+body.is-modal-open .gm-style *{ pointer-events:none !important; } /* khoá Google controls */
+body.is-modal-open .modal,
+body.is-modal-open .modal *{ pointer-events:auto !important; }    /* nhưng vẫn cho modal tương tác */
+
+/* Lottie overlay */
+#lottie-overlay{ position:fixed; inset:0; display:none; place-items:center; background:rgba(15,23,42,.32); z-index:4000; }
+#lottie-overlay.show{ display:grid; }
+#lottie-box{ width:min(260px,60vw); height:min(260px,60vw); }
+#lottie-overlay .hint{
+  margin-top:8px; font-weight:700; color:#111827; background:#fff;
+  padding:8px 12px; border-radius:999px; border:1px solid var(--border);
+  box-shadow:0 10px 30px rgba(0,0,0,.12); text-align:center;
+}
+
+/* PRO THEME */
+html[data-mode="pro"]{
+  --bg:#0b0f1a; --card:#0f172a; --ink:#e5e7eb; --muted:#9ca3af; --primary:#8b5cf6; --border:#1f2937;
+}
+html[data-mode="pro"] body{
+  background:
+    radial-gradient(1200px 800px at 10% -10%, rgba(139,92,246,.15), transparent),
+    radial-gradient(1100px 700px at 90% 110%, rgba(14,165,233,.12), transparent),
+    var(--bg);
+  color:var(--ink);
+}
+html[data-mode="pro"] .toolbar,
+html[data-mode="pro"] .card,
+html[data-mode="pro"] .tab-btn,
+html[data-mode="pro"] .tabs2 .btn,
+html[data-mode="pro"] .item,
+html[data-mode="pro"] .modal .box{
+  background:rgba(15,23,42,.6) !important;
+  backdrop-filter: blur(8px);
+  border-color:var(--border) !important;
+  color:var(--ink);
+}
+html[data-mode="pro"] .card h3,
+html[data-mode="pro"] .detail .head{ background:rgba(2,6,23,.6); border-color:var(--border); }
+html[data-mode="pro"] .pill{ background:rgba(2,6,23,.6); border-color:var(--border); color:var(--ink); }
+html[data-mode="pro"] #map::after{ background: conic-gradient(from 0deg, #8b5cf6, #06b6d4, #8b5cf6); }
+
+.map-col{ position:relative; }
+
+/* Xe chạy ven khung map */
+#map-car{
+  position:absolute; z-index:5; pointer-events:none; width:26px; height:26px;
+  top:var(--pad,10px); left:var(--pad,10px); display:grid; place-items:center;
+  animation:drive-around 12s linear infinite; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); will-change: transform;
+}
+#map-car::before{ content:"🚗"; font-size:22px; line-height:1; }
+@keyframes drive-around{
+  0%{ transform: translate(0,0) rotate(0deg); }
+  25%{ transform: translate(var(--w,300px), 0) rotate(90deg); }
+  50%{ transform: translate(var(--w,300px), var(--h,300px)) rotate(180deg); }
+  75%{ transform: translate(0, var(--h,300px)) rotate(270deg); }
+  100%{ transform: translate(0,0) rotate(360deg); }
+}
+#btn-pro-mode{ border-color:#c7d2fe; }
+html[data-mode="pro"] #btn-pro-mode{ border-color:#8b5cf6; box-shadow:0 0 0 2px rgba(139,92,246,.15) inset; }
+
+/* Icon marker (cho Advanced Marker hoặc legend) */
+.pin{ width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:16px; color:#fff; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+.pin-bank{ background:#2563eb; }
+.pin-branch{ background:#10b981; }
+.pin-atm{ background:#f59e0b; }
+
+</style>
+</head>
+
+<!-- viewer: 1 nếu không phải admin -->
+<body data-viewer="{% if not request.user.is_superuser %}1{% endif %}">
+  <header>
+    <h1>Quản lý điểm trên bản đồ</h1>
+    <p class="sub">Tìm kiếm chung cho Ngân hàng / Chi nhánh / ATM. Bật vị trí để xem các điểm gần nhất. Thống kê toàn bộ dữ liệu dạng bảng, click để pan tới điểm.</p>
+  </header>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <input id="q" class="input" placeholder="Tìm mã / tên / địa chỉ… (NH, CN, ATM)"/>
+    <div class="seg" title="Bật/tắt lớp hiển thị">
+      <button class="toggle active" id="show-banks">Ngân hàng</button>
+      <button class="toggle active" id="show-branches">Chi nhánh</button>
+      <button class="toggle active" id="show-atms">ATM</button>
+    </div>
+    <button class="btn" id="btn-my-location" title="Bật vị trí của tôi">📍 Vị trí của tôi</button>
+    <div class="seg">
+      <button class="btn" id="btn-nearest-atm" title="ATM gần tôi nhất">🎯 ATM gần nhất</button>
+      <button class="btn" id="btn-nearest-branch" title="Chi nhánh gần tôi nhất">🎯 Chi nhánh gần nhất</button>
+      <button class="btn" id="btn-nearest-bank" title="Ngân hàng gần tôi nhất">🎯 Ngân hàng gần nhất</button>
+    </div>
+    <button class="btn" id="btn-pro-mode" title="Giao diện chuyên nghiệp">⚡ Chế độ Pro</button>
+    <button class="btn" id="btn-reset-ui" title="Xoá bộ lọc, kết quả, route">🧹 Reset</button>
+
+    <!-- Đăng xuất (POST) -->
+    <form id="logout-form" method="post" action="{% url 'logout' %}" style="margin:0">
+      {% csrf_token %}
+      <button class="btn" id="btn-logout" title="Đăng xuất">↩︎ Đăng xuất</button>
+    </form>
+
+    {% if request.user.is_superuser %}
+      <button class="btn btn-primary" id="btn-stats">📊 Thống kê</button>
+      <button class="btn" id="btn-permissions">🛡️ Phân quyền</button>
+    {% endif %}
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results"></div>
+
+  <!-- ======= HÀNG TRÊN ======= -->
+  <section id="top-row">
+    <!-- CỘT TRÁI: chỉ hiện cho admin -->
+    {% if request.user.is_superuser %}
+    <div class="left">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="bank">Thêm Ngân hàng</button>
+        <button class="tab-btn"        data-tab="branch">Thêm Chi nhánh</button>
+        <button class="tab-btn"        data-tab="atm">Thêm ATM</button>
+      </div>
+
+      <div class="grid">
+        <!-- BANK -->
+        <div class="card panel active" id="panel-bank">
+          <h3>Ngân hàng</h3>
+          <button class="btn" id="toggle-bank-form" title="Đóng/Mở Form">⏺</button>
+          <div class="body">
+            <form id="form-save-bank" method="POST">
+              {% csrf_token %}
+              <input type="hidden" id="bank_id" name="bank_id"/>
+              <div class="row"><label>Mã ngân hàng</label><input type="text" id="bank_code" name="code" placeholder="VD: VCB"/></div>
+              <div class="row"><label>Tên ngân hàng</label><input type="text" id="bank_name" name="name" placeholder="Vietcombank"/></div>
+              <div class="row"><label>Địa chỉ</label><input type="text" id="bank_address" name="address"/></div>
+              <div class="row"><label>SĐT</label><input type="text" id="bank_phone" name="phone"/></div>
+              <div class="row">
+                <label>Hình ảnh (URL)</label>
+                <div class="thumb-wrap">
+                  <input type="text" id="bank_image" name="image" placeholder="https://.../logo.png"/>
+                  <img id="bank_preview" class="thumb" alt="Preview"/>
+                </div>
+              </div>
+              <div class="row"><label>Latitude</label><input type="text" id="bank_latitude" name="latitude" readonly/></div>
+              <div class="row"><label>Longitude</label><input type="text" id="bank_longitude" name="longitude" readonly/></div>
+              <div class="row"><label>Ngày tạo</label><input type="text" id="bank_created" readonly/></div>
+              <div class="row"><label>Ngày cập nhật</label><input type="text" id="bank_updated" readonly/></div>
+              <div class="actions">
+                <button type="submit" class="btn btn-primary">Lưu Ngân hàng</button>
+                <button type="button" class="btn btn-danger" id="btn-delete-bank">Xoá</button>
+                <button type="button" class="btn btn-ghost" id="btn-reset-bank">Reset</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- BRANCH -->
+        <div class="card panel" id="panel-branch">
+          <h3>Chi nhánh</h3>
+          <button class="btn" id="toggle-branch-form" title="Đóng/Mở Form">⏺</button>
+          <div class="body">
+            <form id="form-save-branch" method="POST">
+              {% csrf_token %}
+              <input type="hidden" id="branch_id" name="branch_id"/>
+              <div class="row"><label>Ngân hàng</label><select id="branch_bank" name="bank"></select></div>
+              <div class="row"><label>Mã chi nhánh</label><input type="text" id="branch_code" name="code" placeholder="VD: HN-01"/></div>
+              <div class="row"><label>Tên chi nhánh</label><input type="text" id="branch_name" name="name"/></div>
+              <div class="row"><label>Địa chỉ</label><input type="text" id="branch_address" name="address"/></div>
+              <div class="row"><label>SĐT</label><input type="text" id="branch_phone" name="phone"/></div>
+              <div class="row">
+                <label>Hình ảnh (URL)</label>
+                <div class="thumb-wrap">
+                  <input type="text" id="branch_image" name="image" placeholder="https://.../photo.jpg"/>
+                  <img id="branch_preview" class="thumb" alt="Preview"/>
+                </div>
+              </div>
+              <div class="row"><label>Latitude</label><input type="text" id="branch_latitude" name="latitude" readonly/></div>
+              <div class="row"><label>Longitude</label><input type="text" id="branch_longitude" name="longitude" readonly/></div>
+              <div class="row"><label>Ngày tạo</label><input type="text" id="branch_created" readonly/></div>
+              <div class="row"><label>Ngày cập nhật</label><input type="text" id="branch_updated" readonly/></div>
+              <div class="actions">
+                <button type="submit" class="btn btn-primary">Lưu Chi nhánh</button>
+                <button type="button" class="btn btn-danger" id="btn-delete-branch">Xoá</button>
+                <button type="button" class="btn btn-ghost" id="btn-reset-branch">Reset</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- ATM -->
+        <div class="card panel" id="panel-atm">
+          <h3>ATM</h3>
+          <button class="btn" id="toggle-atm-form" title="Đóng/Mở Form">⏺</button>
+          <div class="body">
+            <form id="form-save-atm" method="POST">
+              {% csrf_token %}
+              <input type="hidden" id="atm_id" name="atm_id"/>
+              <div class="row"><label>Chi nhánh</label><select id="branch" name="branch"></select></div>
+              <div class="row"><label>ATM Code</label><input type="text" id="code" name="code" placeholder="VD: ATM-HN-0001"/></div>
+              <div class="row"><label>Status</label>
+                <select id="atm_status" name="status">
+                  <option value="active">Hoạt động</option>
+                  <option value="maintenance">Bảo trì</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </div>
+              <div class="row"><label>Địa chỉ</label><textarea id="address" name="address"></textarea></div>
+              <div class="row">
+                <label>Hình ảnh (URL)</label>
+                <div class="thumb-wrap">
+                  <input type="text" id="atm_image" name="image" placeholder="https://.../atm.jpg"/>
+                  <img id="atm_preview" class="thumb" alt="Preview"/>
+                </div>
+              </div>
+              <div class="row"><label>Latitude</label><input type="text" id="latitude" name="latitude" readonly/></div>
+              <div class="row"><label>Longitude</label><input type="text" id="longitude" name="longitude" readonly/></div>
+              <div class="row"><label>Ngày tạo</label><input type="text" id="atm_created" readonly/></div>
+              <div class="row"><label>Ngày cập nhật</label><input type="text" id="atm_updated" readonly/></div>
+              <div class="actions">
+                <button type="submit" class="btn btn-primary">Lưu ATM</button>
+                <button type="button" class="btn btn-danger" id="btn-delete-atm">Xoá</button>
+                <button type="button" class="btn btn-ghost" id="btn-reset-atm">Reset</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div><!-- /grid -->
+    </div>
+    {% endif %}
+
+    <!-- CỘT GIỮA: MAP -->
+    <div class="map-col">
+      <div id="map"></div>
+      <div id="map-car" aria-hidden="true"></div>
+    </div>
+
+    <!-- CỘT PHẢI: CHI TIẾT -->
+    <aside class="detail right">
+      <div id="detail-card" class="card" style="display:none;">
+        <div class="head">
+          <span id="detail-tag" class="tag">TYPE</span>
+          <div>
+            <div id="detail-title" style="font-weight:800;"></div>
+            <div id="detail-sub" class="muted"></div>
+          </div>
+        </div>
+        <div class="body">
+          <img id="detail-img" class="big" alt="Hình"/>
+          <div class="kv" id="detail-kv"></div>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- Modal Thống kê -->
+  {% if request.user.is_superuser %}
+  <div class="modal" id="stats-modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <strong>Thống kê CSDL</strong>
+        <button class="btn" id="stats-close">Đóng</button>
+      </header>
+      <div class="tabs2">
+        <button class="btn active" data-tab="stats-banks">Ngân hàng</button>
+        <button class="btn" data-tab="stats-branches">Chi nhánh</button>
+        <button class="btn" data-tab="stats-atms">ATM</button>
+      </div>
+      <div class="table-wrap">
+        <div id="stats-banks" class="panel active">
+          <table id="tbl-banks">
+            <thead><tr><th>Mã</th><th>Tên ngân hàng</th><th>Số chi nhánh</th><th>Số ATM</th><th>Địa chỉ</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="stats-branches" class="panel">
+          <table id="tbl-branches">
+            <thead><tr><th>Ngân hàng</th><th>Mã CN</th><th>Tên chi nhánh</th><th>Số ATM</th><th>Địa chỉ</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="stats-atms" class="panel">
+          <table id="tbl-atms">
+            <thead><tr><th>Mã ATM</th><th>Ngân hàng</th><th>Chi nhánh</th><th>Trạng thái</th><th>Địa chỉ</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Lottie overlay -->
+  <div id="lottie-overlay" aria-hidden="true">
+    <div>
+      <div id="lottie-box"></div>
+      <div class="hint">Đang xử lý…</div>
+    </div>
+  </div>
+
+  <!-- Data từ view -->
+  <script>
+    const BANKS     = {{ banks_json|safe }};
+    const BRANCHES  = {{ branches_json|safe }};
+    const ATMS_INIT = {{ atms_json|safe }};
+
+    function getCSRFToken(){
+      const el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (el && el.value) return el.value;
+      const m = document.cookie.match(/(?:^|;)\s*csrftoken=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    const pickImage = (d) => d.image_url || d.image || "";
+    const esc = (s) => (s||"").toString().replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+    function localTimeStr(ts, fallback=""){ if(ts===null||ts===undefined) return fallback||""; const d=new Date(ts*1000); return d.toLocaleString('vi-VN',{hour12:false}); }
+  </script>
+
+  <script>
+  let map, routingControl, clickMarker=null;
+  let bankMarkers=[], branchMarkers=[], atmMarkers=[];
+  let atms=[...ATMS_INIT];
+
+  let showBanks=true, showBranches=true, showATMs=true;
+  let qText="";
+  let meMarker=null, myPos=null, geoWatchId=null;
+  let hoverTimer=null;
+
+  let filterBankIdForATMs = null;
+  let filterBankIdForBranches = null;
+
+  let baseLight, baseDark;
+
+  /* ===== Admin helper =====
+
+  Kiểm tra xem người dùng có phải là admin không (dựa trên sự hiện diện của form "form-save-bank"). */
+
+  function isAdmin(){
+    return !!document.getElementById("form-save-bank"); // có form => admin
+  }
+
+  /* Tabs
+  Thay đổi tab đang được kích hoạt và hiển thị nội dung tương ứng.
+  */
+
+  function setActiveTab(key){
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active", b.dataset.tab===key));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id===`panel-${key}`));
+    location.hash="#"+key;
+  }
+  document.addEventListener("click", (e)=>{
+    const t=e.target.closest(".tab-btn"); if(!t) return;
+    setActiveTab(t.dataset.tab);
+  });
+
+  /* Fill selects
+  Điền thông tin ngân hàng vào select (dropdown) theo ID của nó.
+  */
+  function fillBanks(selId){
+    const sel=document.getElementById(selId); if(!sel) return; sel.innerHTML="";
+    BANKS.forEach(b=>{ const opt=document.createElement("option"); opt.value=b.id; opt.textContent=`${b.code} - ${b.name}`; sel.appendChild(opt); });
+  }
+  /*Điền thông tin chi nhánh vào select (dropdown) theo ID của nó.*/
+  function fillBranches(selId){
+    const sel=document.getElementById(selId); if(!sel) return; sel.innerHTML="";
+    BRANCHES.forEach(br=>{ const opt=document.createElement("option"); opt.value=br.id; opt.textContent=`${br["bank__name"]||""} - ${br.name}`; sel.appendChild(opt); });
+  }
+
+  /* Preview ảnh
+  * Liên kết input URL hình ảnh với phần preview ảnh.
+  */
+  function bindPreview(inputId, imgId){
+    const input=document.getElementById(inputId), img=document.getElementById(imgId);
+    if(!input || !img) return;
+    const apply=()=>{ const v=input.value.trim(); img.src=v? v : ""; }; input.addEventListener("input", apply); apply();
+  }
+
+  /* Counts 
+  * Đếm số lượng chi nhánh của một ngân hàng,atm,chi nhánh
+  */
+  function countBranchesOfBank(bankId){ return BRANCHES.filter(br=>br.bank_id===bankId).length; }
+  function countATMsOfBank(bankId){ return atms.filter(a=> (a.branch__bank_id===bankId || a.bank_id===bankId)).length; }
+  function countATMsOfBranch(branchId){ return atms.filter(a=> (a.branch_id===branchId || a.branch===branchId)).length; }
+
+  /* Info / Detail
+  * Tạo HTML thông tin chi tiết cho Ngân hàng, Chi nhánh hoặc ATM.
+   */
+  function infoHTML(type, d){
+    const title = type==="bank"
+      ? `${esc(d.code||"")} - ${esc(d.name||"")}`
+      : type==="branch"
+        ? `${esc(d["bank__name"]||"")} - ${esc(d.name||"")}`
+        : `${esc(d.code||"ATM")}`;
+
+    const rows=[];
+    if(type==="bank"){
+      rows.push(`<div><b>Tên ngân hàng:</b> ${esc(d.name||"")}</div>`);
+      rows.push(`<div><b>Mã NH:</b> ${esc(d.code||"")}</div>`);
+      if(d.phone) rows.push(`<div><b>SĐT:</b> ${esc(d.phone)}</div>`);
+    }else if(type==="branch"){
+      rows.push(`<div><b>Ngân hàng:</b> ${esc(d["bank__name"]||"")}</div>`);
+      rows.push(`<div><b>Mã CN:</b> ${esc(d.code||"")}</div>`);
+    }else{
+      rows.push(`<div><b>Mã ATM:</b> ${esc(d.code||"—")}</div>`);
+      rows.push(`<div><b>Trạng thái:</b> ${esc(d.status||"")}</div>`);
+      if(d["branch__name"]) rows.push(`<div><b>Chi nhánh:</b> ${esc(d["branch__name"])}</div>`);
+      if(d["branch__bank__name"]) rows.push(`<div><b>Ngân hàng:</b> ${esc(d["branch__bank__name"])}</div>`);
+    }
+    rows.push(`<div><b>Địa chỉ:</b> ${esc(d.address||"")}</div>`);
+    rows.push(`<div><b>Lat/Lng:</b> ${d.latitude ?? ""} , ${d.longitude ?? ""}</div>`);
+    rows.push(`<div><b>Ngày tạo:</b> ${localTimeStr(d.created_ts, esc(d.created_at||""))} · <b>Cập nhật:</b> ${localTimeStr(d.updated_ts, esc(d.updated_at||""))}</div>`);
+
+    const img = pickImage(d);
+    const bankId = type==="bank" ? d.id : (type==="branch" ? d.bank_id : (d.branch__bank_id ?? d.bank_id));
+    const destLat = d.latitude ?? d.lat, destLng = d.longitude ?? d.lng;
+
+    return `<div style="max-width:360px;">
+      ${img? `<img src="${esc(img)}" style="width:320px;height:200px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;margin-bottom:8px;">` : ""}
+      <div style="font-weight:800;margin-bottom:4px;">${title}</div>
+      <div style="font-size:12px;line-height:1.5;color:#374151;">${rows.join("")}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${type!=="atm" ? `<button class="btn btn-primary" data-act="view-atm" data-bank-id="${bankId}">Xem ATM</button>` : ``}
+        ${type!=="atm" ? `<button class="btn btn-primary" data-act="view-branch" data-bank-id="${bankId}">Xem Chi nhánh</button>` : ``}
+        <button class="btn" data-act="route" data-lat="${destLat}" data-lng="${destLng}">Chỉ đường</button>
+      </div>
+    </div>`;
+  }
+
+  /*
+  * Hiển thị chi tiết thông tin của Ngân hàng, Chi nhánh hoặc ATM.
+  */
+  function setDetail(type, d){
+    const box=document.getElementById('detail-card');
+    box.style.display="block";
+    const tag=document.getElementById('detail-tag');
+    tag.className="tag "+(type==="bank"?"bank":type==="branch"?"branch":"atm");
+    tag.textContent=type.toUpperCase();
+
+    const titleEl=document.getElementById('detail-title');
+    const subEl=document.getElementById('detail-sub');
+    const imgEl=document.getElementById('detail-img');
+    const kvEl=document.getElementById('detail-kv');
+
+    if(type==="bank"){ titleEl.textContent=`${d.code||""} - ${d.name||""}`; subEl.textContent=d.address||""; }
+    else if(type==="branch"){ titleEl.textContent=`${d["bank__name"]||""} - ${d.name||""}`; subEl.textContent=d.address||""; }
+    else { titleEl.textContent=d.code||"ATM"; subEl.textContent=(d.address||"")+(d.status?` · ${d.status}`:""); }
+    imgEl.src=pickImage(d);
+
+    const lines=[];
+    if(type!=="bank" && d["bank__name"]) lines.push(`<div class="row"><span class="k">Ngân hàng:</span><span>${esc(d["bank__name"])}</span></div>`);
+    if(type==="atm" && d["branch__name"]) lines.push(`<div class="row"><span class="k">Chi nhánh:</span><span>${esc(d["branch__name"])}</span></div>`);
+    if(type==="bank"){
+      lines.push(`<div class="row"><span class="k">Tên NH:</span><span>${esc(d.name||"")}</span></div>`);
+      lines.push(`<div class="row"><span class="k">Mã NH:</span><span>${esc(d.code||"")}</span></div>`);
+    }
+    if(type==="branch"){ lines.push(`<div class="row"><span class="k">Mã CN:</span><span>${esc(d.code||"")}</span></div>`); }
+    if(type==="atm"){
+      lines.push(`<div class="row"><span class="k">Mã ATM:</span><span>${esc(d.code||"—")}</span></div>`);
+      lines.push(`<div class="row"><span class="k">Trạng thái:</span><span>${esc(d.status||"")}</span></div>`);
+    }
+    if(type!=="atm" && d.phone) lines.push(`<div class="row"><span class="k">SĐT:</span><span>${esc(d.phone)}</span></div>`);
+    lines.push(`<div class="row"><span class="k">Địa chỉ:</span><span>${esc(d.address||"")}</span></div>`);
+    lines.push(`<div class="row"><span class="k">Lat/Lng:</span><span>${d.latitude ?? ""} , ${d.longitude ?? ""}</span></div>`);
+    lines.push(`<div class="row"><span class="k">Ngày tạo:</span><span>${localTimeStr(d.created_ts, esc(d.created_at||""))}</span></div>`);
+    lines.push(`<div class="row"><span class="k">Cập nhật:</span><span>${localTimeStr(d.updated_ts, esc(d.updated_at||""))}</span></div>`);
+    kvEl.innerHTML=lines.join("");
+  }
+
+  /* ===== ĐỔ FORM (ADMIN) =====
+  * Điền thông tin vào form "Ngân hàng""Chi nhánh" ""(admin).
+  */
+  function fillBankForm(b){
+    const f = document.getElementById("form-save-bank"); if(!f) return;
+    setActiveTab("bank");
+    document.getElementById("bank_id").value        = b.id ?? "";
+    document.getElementById("bank_code").value      = b.code ?? "";
+    document.getElementById("bank_name").value      = b.name ?? "";
+    document.getElementById("bank_address").value   = b.address ?? "";
+    document.getElementById("bank_phone").value     = b.phone ?? "";
+    document.getElementById("bank_image").value     = b.image ?? "";
+    document.getElementById("bank_preview").src     = pickImage(b);
+    document.getElementById("bank_latitude").value  = b.latitude ?? "";
+    document.getElementById("bank_longitude").value = b.longitude ?? "";
+    document.getElementById("bank_created").value   = localTimeStr(b.created_ts, b.created_at||"");
+    document.getElementById("bank_updated").value   = localTimeStr(b.updated_ts, b.updated_at||"");
+  }
+  function fillBranchForm(br){
+    const f = document.getElementById("form-save-branch"); if(!f) return;
+    setActiveTab("branch");
+    document.getElementById("branch_id").value        = br.id ?? "";
+    document.getElementById("branch_code").value      = br.code ?? "";
+    document.getElementById("branch_name").value      = br.name ?? "";
+    document.getElementById("branch_address").value   = br.address ?? "";
+    document.getElementById("branch_phone").value     = br.phone ?? "";
+    document.getElementById("branch_image").value     = br.image ?? "";
+    document.getElementById("branch_preview").src     = pickImage(br);
+    document.getElementById("branch_latitude").value  = br.latitude ?? "";
+    document.getElementById("branch_longitude").value = br.longitude ?? "";
+    if (document.getElementById("branch_bank")) document.getElementById("branch_bank").value = br.bank_id ?? br.bank ?? "";
+    document.getElementById("branch_created").value   = localTimeStr(br.created_ts, br.created_at||"");
+    document.getElementById("branch_updated").value   = localTimeStr(br.updated_ts, br.updated_at||"");
+  }
+  function fillATMForm(a){
+    const f = document.getElementById("form-save-atm"); if(!f) return;
+    setActiveTab("atm");
+    document.getElementById("atm_id").value        = a.id ?? "";
+    if (document.getElementById("branch")) document.getElementById("branch").value = a.branch_id ?? a.branch ?? "";
+    document.getElementById("code").value          = a.code ?? "";
+    // chuẩn hoá trạng thái
+    const raw = (a.status ?? "active").toString().trim().toLowerCase();
+    const STATUS_MAP = { "active":"active","hoạt động":"active","on":"active","maintenance":"maintenance","bảo trì":"maintenance","offline":"offline","off":"offline","inactive":"offline" };
+    document.getElementById("atm_status").value    = STATUS_MAP[raw] || "active";
+    document.getElementById("address").value       = a.address ?? "";
+    document.getElementById("atm_image").value     = a.image ?? "";
+    document.getElementById("atm_preview").src     = pickImage(a);
+    document.getElementById("latitude").value      = a.latitude ?? "";
+    document.getElementById("longitude").value     = a.longitude ?? "";
+    document.getElementById("atm_created").value   = localTimeStr(a.created_ts, a.created_at||"");
+    document.getElementById("atm_updated").value   = localTimeStr(a.updated_ts, a.updated_at||"");
+  }
+
+  /* ===== Marker icon =====
+  * Tạo HTML cho icon của các loại điểm (Ngân hàng, Chi nhánh, ATM).
+  */
+  function iconHTML(type){
+    const cls = type==="bank" ? "pin pin-bank" : type==="branch" ? "pin pin-branch" : "pin pin-atm";
+    const emoji = type==="bank" ? "🏦" : type==="branch" ? "🏢" : "🏧";
+    return `<div class="${cls}">${emoji}</div>`;
+  }
+
+  /*
+  * Tạo biểu tượng của các điểm (Ngân hàng, Chi nhánh, ATM) bằng Leaflet divIcon.
+  */
+  function createDivIcon(type){
+    return L.divIcon({ html: iconHTML(type), className:"", iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-16] });
+  }
+/*
+* Thêm các sự kiện cho các nút trong popup (ví dụ: xem ATM, chi nhánh, chỉ đường).
+*/
+  function onPopupButtonsReady(popupEl, type, d){
+    popupEl.querySelector('[data-act="view-atm"]')?.addEventListener('click', (ev)=>{
+      const bankId = ev.currentTarget.getAttribute('data-bank-id');
+      resetUI({keepSearch:true});
+      showATMsOfBank(bankId);
+    });
+    popupEl.querySelector('[data-act="view-branch"]')?.addEventListener('click', (ev)=>{
+      const bankId = ev.currentTarget.getAttribute('data-bank-id');
+      resetUI({keepSearch:true});
+      showBranchesOfBank(bankId);
+    });
+    popupEl.querySelector('[data-act="route"]')?.addEventListener('click', async (ev)=>{
+      const btn = ev.currentTarget;
+      const dest = [parseFloat(btn.getAttribute('data-lat')), parseFloat(btn.getAttribute('data-lng'))];
+      const start = await getStartPoint();
+      clearRoute();
+      routingControl.setWaypoints([ L.latLng(start[0], start[1]), L.latLng(dest[0], dest[1]) ]);
+    });
+  }
+/*
+* Tạo marker (chỉ dẫn) trên bản đồ cho Ngân hàng, Chi nhánh hoặc ATM.
+*/
+  function makeMarker(lat, lng, type, d){
+    const m = L.marker([+lat,+lng], { icon:createDivIcon(type) }).addTo(map);
+    const html = infoHTML(type, d);
+    m.bindPopup(html, { autoPan: true, closeButton: true });
+    m.on('popupopen', (e)=>{ const el = e.popup.getElement(); if(el) onPopupButtonsReady(el, type, d); });
+    m.on('mouseover', ()=>{ if(hoverTimer){ clearTimeout(hoverTimer); hoverTimer=null; } m.openPopup(); });
+    m.on('mouseout', ()=>{ hoverTimer = setTimeout(()=> m.closePopup(), 400); });
+    m.on('click', ()=>{
+      if(hoverTimer){ clearTimeout(hoverTimer); hoverTimer=null; }
+      setDetail(type, d);
+      if(isAdmin()){
+        if(type==="bank")   fillBankForm(d);
+        if(type==="branch") fillBranchForm(d);
+        if(type==="atm")    fillATMForm(d);
+      }
+    });
+    return m;
+  }
+
+  /* Search matching
+  * Kiểm tra nếu một ngân hàng,atm,chi nhánh phù hợp với văn bản tìm kiếm.
+  */
+  function matchTextBank(b){ if(!qText) return true; const t=qText.toLowerCase(); return (b.code||"").toLowerCase().includes(t) || (b.name||"").toLowerCase().includes(t) || (b.address||"").toLowerCase().includes(t); }
+  function matchTextBranch(br){ if(!qText) return true; const t=qText.toLowerCase(); return (br.code||"").toLowerCase().includes(t) || (br.name||"").toLowerCase().includes(t) || (br.address||"").toLowerCase().includes(t) || (br["bank__name"]||"").toLowerCase().includes(t); }
+  function matchTextATM(a){ if(!qText) return true; const t=qText.toLowerCase(); return (a.code||"").toLowerCase().includes(t) || (a.address||"").toLowerCase().includes(t) || (a["branch__name"]||"").toLowerCase().includes(t) || (a["branch__bank__name"]||"").toLowerCase().includes(t); }
+
+  /* Vẽ các markers cho Ngân hàng, Chi nhánh, ATM trên bản đồ.*/
+  function drawBanks(){ bankMarkers.forEach(m=>m.remove()); bankMarkers=[]; if(!showBanks) return;
+    BANKS.filter(matchTextBank).forEach(b=>{ if(b.latitude==null||b.longitude==null) return; bankMarkers.push(makeMarker(b.latitude,b.longitude,"bank",b)); });
+  }
+  function drawBranches(){ branchMarkers.forEach(m=>m.remove()); branchMarkers=[]; if(!showBranches) return;
+    BRANCHES.filter(matchTextBranch).filter(br=> filterBankIdForBranches==null ? true : String(br.bank_id)===String(filterBankIdForBranches))
+      .forEach(br=>{ if(br.latitude==null||br.longitude==null) return; branchMarkers.push(makeMarker(br.latitude,br.longitude,"branch",br)); });
+  }
+  function drawATMs(){ atmMarkers.forEach(m=>m.remove()); atmMarkers=[]; if(!showATMs) return;
+    atms.filter(matchTextATM).filter(a=>{
+      if (filterBankIdForATMs==null) return true;
+      const bankIdFromATM = (a.branch__bank_id!=null) ? a.branch__bank_id : a.bank_id;
+      return String(bankIdFromATM)===String(filterBankIdForATMs);
+    }).forEach(a=>{ if(a.latitude==null||a.longitude==null) return; atmMarkers.push(makeMarker(a.latitude,a.longitude,"atm",a)); });
+  }
+  /* Làm mới các lớp dữ liệu (Ngân hàng, Chi nhánh, ATM) trên bản đồ.*/
+  function refreshLayers(){ drawBanks(); drawBranches(); drawATMs(); }
+
+  /* Search panel 
+   Hiển thị kết quả tìm kiếm trên giao diện.
+  */
+  function renderSearchResults(){
+    const wrap=document.getElementById("results");
+    if(!qText){ hideResults(); refreshLayers(); return; }
+    const banks=BANKS.filter(matchTextBank);
+    const branches=BRANCHES.filter(matchTextBranch);
+    const atmsM=atms.filter(matchTextATM);
+    refreshLayers();
+    const sec=(title,items,fmt)=>`
+      <div class="section">
+        <button class="close" id="results-close">✖</button>
+        <h4>${title} <span class="pill">${items.length}</span></h4>
+        <div class="list">${items.map(fmt).join("")}</div>
+      </div>`;
+    const fmtBank   = (b)=>`<div class="item" data-type="bank"   data-id="${b.id}">
+      <div><b>${esc(b.code||"")}</b> — ${esc(b.name||"")}</div>
+      <div class="sub">${esc(b.address||"")}</div>
+    </div>`;
+    const fmtBranch = (br)=>`<div class="item" data-type="branch" data-id="${br.id}">
+      <div><b>${esc(br.code||"")}</b> — ${esc(br.name||"")}</div>
+      <div class="sub">${esc(br["bank__name"]||"")} · ${esc(br.address||"")}</div>
+    </div>`;
+    const fmtATM    = (a)=>`<div class="item" data-type="atm"    data-id="${a.id}">
+      <div><b>${esc(a.code||"ATM")}</b> — ${esc(a["branch__name"]||"")}</div>
+      <div class="sub">${esc(a["branch__bank__name"]||"")} · ${esc(a.address||"")}</div>
+    </div>`;
+
+    wrap.innerHTML = (banks.length?sec("Ngân hàng",banks,fmtBank):"") + (branches.length?sec("Chi nhánh",branches,fmtBranch):"") + (atmsM.length?sec("ATM",atmsM,fmtATM):"");
+    wrap.style.display="block";
+
+    wrap.querySelector("#results-close")?.addEventListener("click", ()=>{ hideResults(); });
+
+    wrap.querySelectorAll(".item").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        const type=el.dataset.type, id=el.dataset.id;
+        if(type==="bank"){
+          const b=BANKS.find(x=>String(x.id)===id); if(b){ map.setView([+b.latitude,+b.longitude], 15); setDetail("bank", b); if(isAdmin()) fillBankForm(b); }
+        } else if(type==="branch"){
+          const br=BRANCHES.find(x=>String(x.id)===id); if(br){ map.setView([+br.latitude,+br.longitude], 15); setDetail("branch", br); if(isAdmin()) fillBranchForm(br); }
+        } else {
+          const a=atms.find(x=>String(x.id)===id); if(a){ map.setView([+a.latitude,+a.longitude], 15); setDetail("atm", a); if(isAdmin()) fillATMForm(a); }
+        }
+      });
+    });
+  }
+
+  /* Ẩn các kết quả tìm kiếm.*/
+  function hideResults(){ const wrap=document.getElementById("results"); wrap.style.display="none"; wrap.innerHTML=""; }
+
+  /* Di chuyển bản đồ đến vị trí của một điểm dữ liệu cụ thể (Ngân hàng, Chi nhánh, ATM).*/
+  function panToData(type,d){
+    if(d.latitude==null||d.longitude==null) return;
+    map.setView([+d.latitude,+d.longitude], 15);
+  }
+
+  /* My location & routing
+  * Kích hoạt và lấy vị trí của người dùng.
+  */
+  function enableMyLocation(){
+    if(!navigator.geolocation){ alert("Trình duyệt không hỗ trợ Geolocation."); return; }
+    showLottie("scan","Đang lấy vị trí của bạn…");
+    navigator.geolocation.getCurrentPosition(pos=>{
+      setMyPos(pos.coords.latitude, pos.coords.longitude, true);
+      if(!geoWatchId){
+        geoWatchId=navigator.geolocation.watchPosition(p=>{ setMyPos(p.coords.latitude,p.coords.longitude,false); });
+      }
+      hideLottie(200);
+    }, err=>{
+      hideLottie(0);
+      alert("Không lấy được vị trí: "+err.message);
+    }, {enableHighAccuracy:true,timeout:10000,maximumAge:10000});
+  }
+
+  /* Thiết lập vị trí của người dùng và di chuyển bản đồ đến vị trí đó.*/
+  function setMyPos(lat,lng,pan){
+    myPos = [lat, lng];
+    if(!meMarker){ meMarker = L.marker(myPos).addTo(map); }
+    else meMarker.setLatLng(myPos);
+    if(pan) map.setView(myPos, 14);
+  }
+  /* Lấy vị trí hiện tại của người dùng hoặc vị trí mặc định.*/
+  async function getStartPoint(){
+    if(myPos) return myPos;
+    return new Promise(resolve=>{
+      if(!navigator.geolocation){ const c=map.getCenter(); return resolve([c.lat, c.lng]); }
+      navigator.geolocation.getCurrentPosition(p=>{
+        const s=[p.coords.latitude,p.coords.longitude]; setMyPos(...s, false); resolve(s);
+      }, _=>{ const c=map.getCenter(); resolve([c.lat, c.lng]); }, {enableHighAccuracy:true, timeout:5000});
+    });
+  }
+  /* Xóa lộ trình (route) đã được vẽ trên bản đồ.*/
+  function clearRoute(){
+    if(routingControl){ routingControl.setWaypoints([]); }
+  }
+
+  /* Nearest tinh khoang cach gan nhat
+  * Tính khoảng cách giữa hai điểm (theo vĩ độ và kinh độ) bằng công thức haversine.
+  */
+  function hav(a,b){ const R=6371008.8, toRad=x=>x*Math.PI/180; const dlat=toRad(b[0]-a[0]), dlng=toRad(b[1]-a[1]); const s=Math.sin(dlat/2)**2+Math.cos(toRad(a[0]))*Math.cos(toRad(b[0]))*Math.sin(dlng/2)**2; return 2*R*Math.asin(Math.sqrt(s)); }
+  /** Sắp xếp danh sách các điểm theo khoảng cách gần nhất với vị trí của người dùng.*/
+  function nearestList(list){
+    if(!myPos){ alert("Hãy bật 'Vị trí của tôi' trước."); return []; }
+    const res=[];
+    list.forEach(d=>{
+      if(d.latitude==null||d.longitude==null) return;
+      const dist=hav(myPos,[+d.latitude,+d.longitude]); res.push({d, dist});
+    });
+    res.sort((a,b)=>a.dist-b.dist);
+    return res;
+  }
+  /*Hiển thị điểm gần nhất (Ngân hàng, Chi nhánh, ATM) với người dùng.*/
+  function showNearest(type){
+    resetUI({keepSearch:true});
+    showLottie("scan","Đang tìm điểm gần nhất…");
+    let rows=[];
+    if(type==="bank") rows=nearestList(BANKS);
+    else if(type==="branch") rows=nearestList(BRANCHES);
+    else rows=nearestList(atms);
+
+    const wrap=document.getElementById("results");
+    const title = type==="bank"?"Ngân hàng gần nhất": type==="branch"?"Chi nhánh gần nhất":"ATM gần nhất";
+    const fmt=(o)=> type==="bank"
+      ? `<div class="item" data-type="bank" data-id="${o.d.id}">
+           <div><b>${esc(o.d.code||"")}</b> — ${esc(o.d.name||"")} <span class="dist">${(o.dist/1000).toFixed(2)} km</span></div>
+           <div class="sub">${esc(o.d.address||"")}</div></div>`
+      : type==="branch"
+      ? `<div class="item" data-type="branch" data-id="${o.d.id}">
+           <div><b>${esc(o.d.code||"")}</b> — ${esc(o.d.name||"")} <span class="dist">${(o.dist/1000).toFixed(2)} km</span></div>
+           <div class="sub">${esc(o.d["bank__name"]||"")} · ${esc(o.d.address||"")}</div></div>`
+      : `<div class="item" data-type="atm" data-id="${o.d.id}">
+           <div><b>${esc(o.d.code||"ATM")}</b> — ${esc(o.d["branch__name"]||"")} <span class="dist">${(o.dist/1000).toFixed(2)} km</span></div>
+           <div class="sub">${esc(o.d["branch__bank__name"]||"")} · ${esc(o.d.address||"")}</div></div>`;
+
+    wrap.innerHTML = `<div class="section"><button class="close" id="results-close">✖</button><h4>${title} <span class="pill">${rows.length}</span></h4><div class="list">${rows.map(fmt).join("")}</div></div>`;
+    wrap.style.display="block";
+    hideLottie(200);
+    document.getElementById("results-close")?.addEventListener("click", hideResults);
+
+    wrap.querySelectorAll(".item").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        const type=el.dataset.type, id=el.dataset.id;
+        if(type==="bank"){ const b=BANKS.find(x=>String(x.id)===id); if(b){ panToData("bank", b); if(isAdmin()) fillBankForm(b); } }
+        else if(type==="branch"){ const br=BRANCHES.find(x=>String(x.id)===id); if(br){ panToData("branch", br); if(isAdmin()) fillBranchForm(br); } }
+        else { const a=atms.find(x=>String(x.id)===id); if(a){ panToData("atm", a); if(isAdmin()) fillATMForm(a); } }
+      });
+    });
+  }
+
+  /* Stats modal
+  * Mở modal hiển thị thống kê dữ liệu (Ngân hàng, Chi nhánh, ATM).
+  */
+  const statsModal=document.getElementById("stats-modal");
+  function openStats(){
+    const tb=document.querySelector("#tbl-banks tbody"); if(tb){ tb.innerHTML="";
+      BANKS.forEach(b=>{
+        const tr=document.createElement("tr");
+        tr.dataset.type="bank"; tr.dataset.id=b.id;
+        tr.innerHTML=`<td>${esc(b.code||"")}</td><td>${esc(b.name||"")}</td><td>${countBranchesOfBank(b.id)}</td><td>${countATMsOfBank(b.id)}</td><td>${esc(b.address||"")}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+    const tbr=document.querySelector("#tbl-branches tbody"); if(tbr){ tbr.innerHTML="";
+      BRANCHES.forEach(br=>{
+        const tr=document.createElement("tr");
+        tr.dataset.type="branch"; tr.dataset.id=br.id;
+        tr.innerHTML=`<td>${esc(br["bank__name"]||"")}</td><td>${esc(br.code||"")}</td><td>${esc(br.name||"")}</td><td>${countATMsOfBranch(br.id)}</td><td>${esc(br.address||"")}</td>`;
+        tbr.appendChild(tr);
+      });
+    }
+    const ta=document.querySelector("#tbl-atms tbody"); if(ta){ ta.innerHTML="";
+      atms.forEach(a=>{
+        const tr=document.createElement("tr");
+        tr.dataset.type="atm"; tr.dataset.id=a.id;
+        tr.innerHTML=`<td>${esc(a.code||"ATM")}</td><td>${esc(a["branch__bank__name"]||"")}</td><td>${esc(a["branch__name"]||"")}</td><td>${esc(a.status||"")}</td><td>${esc(a.address||"")}</td>`;
+        ta.appendChild(tr);
+      });
+    }
+    statsModal.style.display="grid";
+  }
+  /** Đóng modal hiển thị thống kê dữ liệu.*/
+  function closeStats(){ statsModal.style.display="none"; }
+  document.getElementById("stats-close")?.addEventListener("click", closeStats);
+  statsModal?.addEventListener("click", (e)=>{ if(e.target===statsModal) closeStats(); });
+  document.querySelectorAll(".tabs2 .btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tabs2 .btn").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelectorAll(".table-wrap .panel").forEach(x=>x.classList.remove("active"));
+      document.getElementById(btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  document.querySelectorAll(".table-wrap").forEach(wrap=>{
+    wrap.addEventListener("click",(e)=>{
+      const tr=e.target.closest("tr"); if(!tr) return;
+      const type=tr.dataset.type, id=tr.dataset.id;
+      if(type==="bank"){ const b=BANKS.find(x=>String(x.id)===id); if(b) { closeStats(); panToData("bank", b); if(isAdmin()) fillBankForm(b); } }
+      else if(type==="branch"){ const br=BRANCHES.find(x=>String(x.id)===id); if(br) { closeStats(); panToData("branch", br); if(isAdmin()) fillBranchForm(br); } }
+      else { const a=atms.find(x=>String(x.id)===id); if(a) { closeStats(); panToData("atm", a); if(isAdmin()) fillATMForm(a); } }
+    });
+  });
+
+  /* POST forms 
+  * Gửi dữ liệu từ form lên server (POST).
+  */
+  function postForm(url, fd){
+    return fetch(url, {
+      method: "POST", credentials: "same-origin",
+      headers: { "X-CSRFToken": getCSRFToken(), "X-Requested-With": "XMLHttpRequest" },
+      body: fd
+    }).then(r => r.ok ? r : r.text().then(Promise.reject));
+  }
+  /** Liên kết form "Ngân hàng" với các sự kiện (submit, xoá, reset).*/
+  function bindBankForm(){
+    const f=document.getElementById("form-save-bank");
+    f.addEventListener("submit",(ev)=>{ ev.preventDefault(); const fd=new FormData(f); postForm("{% url 'bank_save' %}", fd).then(()=>location.reload()).catch(e=>alert("Lỗi Bank: "+e)); });
+    document.getElementById("btn-delete-bank").addEventListener("click", ()=>{
+      const id=(document.getElementById('bank_id').value||"").trim(); if(!id) return alert("Chưa chọn ngân hàng để xoá.");
+      if(!confirm("Xoá ngân hàng này?")) return;
+      const fd=new FormData(); fd.append("bank_id", id);
+      postForm("{% url 'bank_delete' %}", fd).then(()=>location.reload()).catch(e=>alert("Lỗi xoá Bank: "+e));
+    });
+  }
+  /*
+  * Liên kết form "Chi nhánh" với các sự kiện (submit, xoá, reset).
+  */
+  function bindBranchForm(){
+    const f=document.getElementById("form-save-branch");
+    f.addEventListener("submit",(ev)=>{ ev.preventDefault(); const fd=new FormData(f); postForm("{% url 'branch_save' %}", fd).then(()=>location.reload()).catch(e=>alert("Lỗi Branch: "+e)); });
+    document.getElementById("btn-delete-branch").addEventListener("click", ()=>{
+      const id=(document.getElementById('branch_id').value||"").trim(); if(!id) return alert("Chưa chọn chi nhánh để xoá.");
+      if(!confirm("Xoá chi nhánh này? (Có thể xoá ATM liên quan)")) return;
+      const fd=new FormData(); fd.append("branch_id", id);
+      postForm("{% url 'branch_delete' %}", fd).then(()=>location.reload()).catch(e=>alert("Lỗi xoá Branch: "+e));
+    });
+  }
+  /*
+  * Liên kết form "ATM" với các sự kiện (submit, xoá, reset).
+  */
+  function bindATMForm(){
+    const f=document.getElementById("form-save-atm");
+    f.addEventListener("submit",(ev)=>{ ev.preventDefault(); const fd=new FormData(f); if(!fd.get("branch")) return alert("Chọn chi nhánh trước khi lưu ATM."); postForm("{% url 'atm_save' %}", fd).then(()=>location.reload()).catch(e=>alert("Lỗi ATM: "+e)); });
+    document.getElementById("btn-delete-atm").addEventListener("click", ()=>{
+      const id=(document.getElementById('atm_id').value||"").trim(); if(!id) return alert("Chưa chọn ATM để xoá.");
+      if(!confirm("Xoá ATM này?")) return;
+      const fd=new FormData(); fd.append("atm_id", id);
+      postForm("{% url 'atm_delete' %}", fd).then(()=>location.reload()).catch(e=>alert("Lỗi xoá ATM: "+e));
+    });
+  }
+
+  /* Reset helpers
+  * Xóa các giá trị trong các trường form.
+  * Xóa ảnh preview trong form.
+  *  Reset form "Ngân hàng" về trạng thái ban đầu.
+  *  Reset form "Chi nhánh" về trạng thái ban đầu.
+  *  Reset form "ATM" về trạng thái ban đầu.
+  */
+  function clear(ids){ ids.forEach(id=>{ const el=document.getElementById(id); if(!el) return; if(el.tagName==="SELECT"){} else el.value=""; }); }
+  function resetImg(id){ const img=document.getElementById(id); if(img) img.src=""; if(clickMarker){ clickMarker.remove(); clickMarker=null; } }
+  function resetBankForm(){ clear(["bank_id","bank_code","bank_name","bank_address","bank_phone","bank_image","bank_latitude","bank_longitude","bank_created","bank_updated"]); resetImg("bank_preview"); }
+  function resetBranchForm(){ const keep=document.getElementById("branch_bank")?.value; clear(["branch_id","branch_code","branch_name","branch_address","branch_phone","branch_image","branch_latitude","branch_longitude","branch_created","branch_updated"]); if(document.getElementById("branch_bank")) document.getElementById("branch_bank").value=keep; resetImg("branch_preview"); }
+  function resetATMForm(){ const keep=document.getElementById("branch")?.value; clear(["atm_id","code","address","atm_image","latitude","longitude","atm_created","atm_updated"]); if(document.getElementById("branch")) document.getElementById("branch").value=keep; document.getElementById("atm_status").value="active"; resetImg("atm_preview"); }
+
+  /* Lọc ATM theo Ngân hàng.*/
+  function setATMFilterByBank(bankId){
+    const id = bankId != null ? Number(bankId) : null;
+    filterBankIdForATMs = isNaN(id) ? bankId : id;
+    showATMs = true; document.getElementById("show-atms")?.classList.add("active");
+    refreshLayers();
+  }
+  /*Lọc Chi nhánh theo Ngân hàng.*/
+  function setBranchFilterByBank(bankId){
+    const id = bankId != null ? Number(bankId) : null;
+    filterBankIdForBranches = isNaN(id) ? bankId : id;
+    showBranches = true; document.getElementById("show-branches")?.classList.add("active");
+    refreshLayers();
+  }
+  /* Xóa bộ lọc ngân hàng cho ATM và Chi nhánh.*/
+  function clearBankFilters(){ filterBankIdForATMs = null; filterBankIdForBranches = null; }
+
+  /*
+  * Reset lại giao diện người dùng (các bộ lọc, tìm kiếm, lớp dữ liệu).
+  */
+  function resetUI(opts={}){
+    clearBankFilters();
+    showBanks=true; showBranches=true; showATMs=true;
+    document.getElementById("show-banks")?.classList.add("active");
+    document.getElementById("show-branches")?.classList.add("active");
+    document.getElementById("show-atms")?.classList.add("active");
+    clearRoute();
+    hideResults();
+    if(!opts.keepSearch){ const q=document.getElementById("q"); if(q){ q.value=""; qText=""; } }
+    refreshLayers();
+  }
+
+  /* Xem ATM/Branch theo bank
+  * Hiển thị tất cả các ATM của một ngân hàng cụ thể.
+  */
+  function showATMsOfBank(bankId) {
+    hideResults();
+    setATMFilterByBank(bankId);
+    const bank = BANKS.find(b => String(b.id) === String(bankId));
+    const relatedATMs = atms.filter(a => String((a.branch__bank_id!=null)?a.branch__bank_id:a.bank_id) === String(bankId));
+
+    const wrap = document.getElementById("results");
+    if (wrap) {
+      const fmtATM = (a)=>`<div class="item" data-type="atm" data-id="${a.id}">
+        <div><b>${esc(a.code||"ATM")}</b> — ${esc(a["branch__name"]||"")}</div>
+        <div class="sub">${esc(a["branch__bank__name"]||bank?.name||"")} · ${esc(a.address||"")}</div>
+      </div>`;
+      wrap.innerHTML = `<div class="section"><button class="close" id="results-close">✖</button><h4>ATM của ${esc(bank?.code||"")} - ${esc(bank?.name||"")} <span class="pill">${relatedATMs.length}</span></h4><div class="list">${relatedATMs.map(fmtATM).join("") || "<div class='item'>Chưa có ATM.</div>"}</div></div>`;
+      wrap.style.display = "block";
+      document.getElementById("results-close")?.addEventListener("click", hideResults);
+      wrap.querySelectorAll(".item[data-type='atm']").forEach(el=>{
+        el.addEventListener("click", ()=>{
+          const id = el.dataset.id;
+          const a = atms.find(x => String(x.id) === String(id));
+          if(a){ panToData("atm", a); if(isAdmin()) fillATMForm(a); }
+        });
+      });
+    }
+
+    if (relatedATMs.length){
+      const g = L.featureGroup(relatedATMs.filter(a=>a.latitude!=null&&a.longitude!=null).map(a=>L.marker([+a.latitude,+a.longitude])));
+      if (g.getLayers().length) map.fitBounds(g.getBounds().pad(0.15));
+    }
+  }
+  /*
+  * Hiển thị tất cả các Chi nhánh của một ngân hàng cụ thể.
+  */
+  function showBranchesOfBank(bankId) {
+    hideResults();
+    setBranchFilterByBank(bankId);
+    const relatedBranches = BRANCHES.filter(br => String(br.bank_id) === String(bankId));
+    const bank = BANKS.find(b => String(b.id) === String(bankId));
+
+    const wrap = document.getElementById("results");
+    if (wrap) {
+      const fmt = (br)=>`<div class="item" data-type="branch" data-id="${br.id}">
+        <div><b>${esc(br.code||"")}</b> — ${esc(br.name||"")}</div>
+        <div class="sub">${esc(br["bank__name"]||bank?.name||"")} · ${esc(br.address||"")}</div>
+      </div>`;
+      wrap.innerHTML = `<div class="section"><button class="close" id="results-close">✖</button><h4>Chi nhánh của ${esc(bank?.code||"")} - ${esc(bank?.name||"")} <span class="pill">${relatedBranches.length}</span></h4><div class="list">${relatedBranches.map(fmt).join("") || "<div class='item'>Chưa có chi nhánh.</div>"}</div></div>`;
+      wrap.style.display = "block";
+      document.getElementById("results-close")?.addEventListener("click", hideResults);
+      wrap.querySelectorAll(".item[data-type='branch']").forEach(el=>{
+        el.addEventListener("click", ()=>{
+          const id = el.dataset.id;
+          const br = BRANCHES.find(x => String(x.id) === String(id));
+          if(br){ panToData("branch", br); if(isAdmin()) fillBranchForm(br); }
+        });
+      });
+    }
+
+    if (relatedBranches.length){
+      const g = L.featureGroup(relatedBranches.filter(b=>b.latitude!=null&&b.longitude!=null).map(b=>L.marker([+b.latitude,+b.longitude])));
+      if (g.getLayers().length) map.fitBounds(g.getBounds().pad(0.15));
+    }
+  }
+
+  /* Lottie */
+  const LOTTIE_URLS = {
+    scan: "https://assets10.lottiefiles.com/packages/lf20_4kx2q32n.json",
+    success: "https://assets10.lottiefiles.com/packages/lf20_jbrw3hcz.json"
+  };
+  let lottiePlayer = null;
+  function showLottie(kind="scan", text="Đang xử lý…", loop=true){
+    const overlay = document.getElementById("lottie-overlay");
+    const box = document.getElementById("lottie-box");
+    const hint = overlay.querySelector(".hint");
+    hint.textContent = text;
+    overlay.classList.add("show");
+    if (lottiePlayer){ lottiePlayer.destroy(); lottiePlayer=null; }
+    lottiePlayer = lottie.loadAnimation({ container: box, renderer: "svg", loop, autoplay: true, path: LOTTIE_URLS[kind] || LOTTIE_URLS.scan });
+  }
+  function hideLottie(delayMs=0){
+    const overlay = document.getElementById("lottie-overlay");
+    const doHide = ()=>{ if (lottiePlayer){ lottiePlayer.destroy(); lottiePlayer=null; } overlay.classList.remove("show"); };
+    delayMs ? setTimeout(doHide, delayMs) : doHide();
+  }
+
+  /* PRO MODE */
+  const MODE_KEY = "ui-mode";
+  function isProMode(){ return document.documentElement.getAttribute("data-mode")==="pro"; }
+  function updateProBtn(){
+    const btn = document.getElementById("btn-pro-mode");
+    if(!btn) return;
+    btn.textContent = isProMode() ? "↩︎ Thoát Pro" : "⚡ Chế độ Pro";
+  }
+  /** Áp dụng chế độ giao diện (chế độ thường hoặc chế độ Pro).*/
+  function applyMode(mode){
+    document.documentElement.setAttribute("data-mode", mode);
+    localStorage.setItem(MODE_KEY, mode);
+    if (map){
+      if(mode==="pro"){ if (map.hasLayer(baseLight)) map.removeLayer(baseLight); baseDark.addTo(map); }
+      else { if (map.hasLayer(baseDark)) map.removeLayer(baseDark); baseLight.addTo(map); }
+    }
+    /* Cập nhật trạng thái của nút "Chế độ Pro".*/
+    updateProBtn();
+    updateCarPath();
+  }
+
+  /*
+  * Chuyển đổi giữa chế độ thường và chế độ Pro.*/
+  function togglePro(){
+    const next = isProMode() ? "normal" : "pro";
+    showLottie("scan", isProMode() ? "Đang quay về giao diện thường…" : "Đang chuyển sang giao diện Pro…");
+    setTimeout(()=>{ applyMode(next); hideLottie(350); }, 500);
+  }
+
+  /* Xe chạy */
+  function updateCarPath(){
+    const box = document.getElementById("map");
+    const car = document.getElementById("map-car");
+    if(!box || !car) return;
+    const CAR = 26;
+    const PAD  = isProMode() ? -12 : 10;
+    const w = Math.max(0, box.clientWidth  - (PAD*2 + CAR));
+    const h = Math.max(0, box.clientHeight - (PAD*2 + CAR));
+    car.style.setProperty("--w", w + "px");
+    car.style.setProperty("--h", h + "px");
+    car.style.setProperty("--pad", PAD + "px");
+  }
+  window.addEventListener("resize", updateCarPath);
+  applyMode(localStorage.getItem(MODE_KEY) || "normal");
+
+  /* INIT
+  * Khởi tạo bản đồ và các lớp dữ liệu ban đầu (Ngân hàng, Chi nhánh, ATM).
+  */
+  function initMap(){
+    map = L.map('map', { zoomControl: true }).setView([21.0285,105.8542], 12);
+    baseLight = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
+    baseDark  = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap, &copy; CartoDB' });
+    (isProMode() ? baseDark : baseLight).addTo(map);
+
+    routingControl = L.Routing.control({
+      waypoints:[], addWaypoints:false, draggableWaypoints:false, routeWhileDragging:false, showAlternatives:false, createMarker:()=>null
+    }).addTo(map);
+    if (routingControl && routingControl._container) routingControl._container.style.display = 'none';
+
+    updateCarPath();
+
+    if (document.getElementById("branch_bank")) fillBanks("branch_bank");
+    if (document.getElementById("branch")) fillBranches("branch");
+    if (document.getElementById("bank_image")) bindPreview("bank_image","bank_preview");
+    if (document.getElementById("branch_image")) bindPreview("branch_image","branch_preview");
+    if (document.getElementById("atm_image")) bindPreview("atm_image","atm_preview");
+
+    map.on('click', (e)=>{
+      if (clickMarker) clickMarker.remove();
+      clickMarker = L.circleMarker(e.latlng, {radius:5, fillOpacity:1, weight:1, color:"#111827", fillColor:"#111827"}).addTo(map);
+
+      const hasBankForm = !!document.getElementById("form-save-bank");
+      const hasBranchForm = !!document.getElementById("form-save-branch");
+      const hasATMForm = !!document.getElementById("form-save-atm");
+      if (!hasBankForm && !hasBranchForm && !hasATMForm) return;
+
+      const active = document.querySelector(".panel.active")?.id || "panel-bank";
+      if (active==="panel-bank" && hasBankForm){
+        resetBankForm();
+        document.getElementById("bank_latitude").value=e.latlng.lat;
+        document.getElementById("bank_longitude").value=e.latlng.lng;
+      } else if (active==="panel-branch" && hasBranchForm){
+        resetBranchForm();
+        document.getElementById("branch_latitude").value=e.latlng.lat;
+        document.getElementById("branch_longitude").value=e.latlng.lng;
+      } else if (hasATMForm){
+        resetATMForm();
+        document.getElementById("latitude").value=e.latlng.lat;
+        document.getElementById("longitude").value=e.latlng.lng;
+        document.getElementById("atm_status").value="active";
+      }
+    });
+
+    // Toolbar events
+    const qEl = document.getElementById("q");
+    qEl.addEventListener("input", debounce((e)=>{ qText=e.target.value.trim(); renderSearchResults(); },120));
+    qEl.addEventListener("keydown", (e)=>{
+      if(e.key==="Enter"){
+        const t=qText.trim().toLowerCase(); if(!t) return;
+        const cand = (BANKS.find(b=>matchTextBank(b)) || BRANCHES.find(b=>matchTextBranch(b)) || atms.find(a=>matchTextATM(a)));
+        if(cand && cand.latitude!=null && cand.longitude!=null){ map.setView([+cand.latitude,+cand.longitude],15); }
+      }
+    });
+
+    document.getElementById("show-banks").addEventListener("click", (e)=>{ showBanks=!showBanks; e.target.classList.toggle("active", showBanks); refreshLayers(); });
+    document.getElementById("show-branches").addEventListener("click", (e)=>{ showBranches=!showBranches; e.target.classList.toggle("active", showBranches); refreshLayers(); });
+    document.getElementById("show-atms").addEventListener("click", (e)=>{ showATMs=!showATMs; e.target.classList.toggle("active", showATMs); refreshLayers(); });
+    document.getElementById("btn-my-location").addEventListener("click", enableMyLocation);
+    document.getElementById("btn-nearest-atm").addEventListener("click", ()=>showNearest("atm"));
+    document.getElementById("btn-nearest-branch").addEventListener("click", ()=>showNearest("branch"));
+    document.getElementById("btn-nearest-bank").addEventListener("click", ()=>showNearest("bank"));
+    document.getElementById("btn-reset-ui").addEventListener("click", ()=>resetUI());
+
+    const _btnStats = document.getElementById("btn-stats"); if (_btnStats) _btnStats.addEventListener("click", openStats);
+    const _btnPermissions = document.getElementById("btn-permissions");
+    if (_btnPermissions) { _btnPermissions.addEventListener("click", () => { window.location.href = "{% url 'manage_permissions' %}"; }); }
+
+    document.getElementById("btn-pro-mode")?.addEventListener("click", togglePro);
+    updateProBtn();
+
+    if (document.getElementById("form-save-bank")) bindBankForm();
+    if (document.getElementById("form-save-branch")) bindBranchForm();
+    if (document.getElementById("form-save-atm")) bindATMForm();
+
+    document.getElementById("btn-reset-bank")?.addEventListener("click", resetBankForm);
+    document.getElementById("btn-reset-branch")?.addEventListener("click", resetBranchForm);
+    document.getElementById("btn-reset-atm")?.addEventListener("click", resetATMForm);
+
+    // vẽ data lần đầu
+    refreshLayers();
+  }
+
+  /* Utils */
+  function debounce(fn,ms){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms); }; }
+
+  /* Start */
+  window.initMap = initMap;
+  if (document.readyState !== 'loading') initMap();
+  else window.addEventListener('DOMContentLoaded', initMap);
+
+  // Toggle form visibility
+  document.getElementById('toggle-bank-form')?.addEventListener('click', function() {
+    const formBody = document.querySelector('#panel-bank .body'); const btn = document.getElementById('toggle-bank-form');
+    if (!formBody || !btn) return; if (formBody.style.display === 'none') { formBody.style.display = 'block'; btn.textContent = '⏺'; } else { formBody.style.display = 'none'; btn.textContent = '▶️'; }
+  });
+  document.getElementById('toggle-branch-form')?.addEventListener('click', function() {
+    const formBody = document.querySelector('#panel-branch .body'); const btn = document.getElementById('toggle-branch-form');
+    if (!formBody || !btn) return; if (formBody.style.display === 'none') { formBody.style.display = 'block'; btn.textContent = '⏺'; } else { formBody.style.display = 'none'; btn.textContent = '▶️'; }
+  });
+  document.getElementById('toggle-atm-form')?.addEventListener('click', function() {
+    const formBody = document.querySelector('#panel-atm .body'); const btn = document.getElementById('toggle-atm-form');
+    if (!formBody || !btn) return; if (formBody.style.display === 'none') { formBody.style.display = 'block'; btn.textContent = '⏺'; } else { formBody.style.display = 'none'; btn.textContent = '▶️'; }
+  });
+
+  document.getElementById('btn-logout')?.addEventListener('click', (e)=>{ if(!confirm('Bạn chắc chắn muốn đăng xuất?')) e.preventDefault(); });
+
+  </script>
+</body>
+</html>

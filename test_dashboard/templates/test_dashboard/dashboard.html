@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Runner Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-body: #f5f5f7;
+            --card-bg: #ffffff;
+            --mac-header: #e4e3e3;
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
+            --pass-bg: #e6f8ea; --pass-text: #00872e;
+            --fail-bg: #feeceb; --fail-text: #cd2b31;
+            --pending-bg: #fff5d1; --pending-text: #9a6e02;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- STAT CARDS (WIDGETS) --- */
+        .widget-card {
+            background: var(--card-bg);
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.02);
+            height: 100%;
+        }
+        .widget-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.06);
+        }
+        .stat-number { font-size: 2.5rem; font-weight: 700; line-height: 1.2; margin-bottom: 5px; }
+        .stat-label { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; }
+
+        /* --- MAC WINDOW STYLE --- */
+        .mac-window {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.05);
+            margin-bottom: 40px;
+        }
+        
+        .mac-header {
+            background: #f3f3f3; /* Màu xám đặc trưng của Mac */
+            padding: 12px 18px;
+            border-bottom: 1px solid #dcdcdc;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .traffic-lights {
+            display: flex;
+            gap: 8px;
+        }
+        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .dot.red { background-color: #ff5f57; border: 1px solid #e0443e; }
+        .dot.yellow { background-color: #febc2e; border: 1px solid #d89e24; }
+        .dot.green { background-color: #28c840; border: 1px solid #1aab29; }
+
+        .window-title {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9rem;
+            flex-grow: 1;
+            text-align: center;
+            margin-right: 50px; /* Cân bằng lại vị trí text */
+        }
+
+        /* --- TABLE STYLING --- */
+        .table-custom { margin-bottom: 0; }
+        .table-custom th {
+            background-color: #fff;
+            border-bottom: 2px solid #f0f0f0;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            padding: 15px 20px;
+        }
+        .table-custom td {
+            padding: 16px 20px;
+            vertical-align: middle;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f5f5f7;
+        }
+        .table-hover tbody tr:hover { background-color: #fafafa; }
+
+        /* --- BADGES --- */
+        .badge-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .bg-pass { background-color: var(--pass-bg); color: var(--pass-text); }
+        .bg-fail { background-color: var(--fail-bg); color: var(--fail-text); }
+        .bg-pending { background-color: var(--pending-bg); color: var(--pending-text); }
+
+        /* --- BUTTONS --- */
+        .btn-action {
+            border-radius: 8px;
+            padding: 10px 24px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: none;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .btn-action:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            opacity: 0.9;
+        }
+        .btn-action:disabled {
+            background-color: #ccc !important;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* --- LOADING OVERLAY --- */
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .spinner-mac {
+            width: 40px; height: 40px;
+            border: 4px solid #f3f3f3; border-top: 4px solid #007aff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner-mac mb-3"></div>
+    <h5 class="fw-bold text-secondary" id="loading-text">Đang xử lý...</h5>
+    <p class="text-muted small">Vui lòng đợi trong giây lát</p>
+</div>
+
+<div class="container py-5">
+    
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h2 class="fw-bold mb-1" style="letter-spacing: -0.5px;">Automation Dashboard</h2>
+            <p class="text-secondary mb-0">Project: MapBank Integration System</p>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <button class="btn btn-action" style="background-color: #007aff;" onclick="runTests('all')">
+                <i class="fa-solid fa-play me-2"></i> Chạy Full (Ngầm)
+            </button>
+            
+            <button class="btn btn-action" style="background-color: #f59e0b;" onclick="runTests('selenium')">
+                <i class="fa-solid fa-robot me-2"></i> 10 Case (Giữ Tab)
+            </button>
+            
+            <button class="btn btn-action" style="background-color: #ef4444;" onclick="closeAllBrowsers()">
+                <i class="fa-solid fa-power-off me-2"></i> Đóng Hết Chrome
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="widget-card text-center">
+                <div class="stat-number text-dark">{{ stats.total }}</div>
+                <div class="stat-label">Total Cases</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="widget-card text-center">
+                <div class="stat-number" style="color: var(--pass-text)">{{ stats.pass }}</div>
+                <div class="stat-label">Passed</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="widget-card text-center">
+                <div class="stat-number" style="color: var(--fail-text)">{{ stats.fail }}</div>
+                <div class="stat-label">Failed</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="widget-card text-center">
+                <div class="stat-number" style="color: var(--pending-text)">{{ stats.pending }}</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mac-window">
+        <div class="mac-header">
+            <div class="traffic-lights">
+                <span class="dot red" title="Close"></span>
+                <span class="dot yellow" title="Minimize"></span>
+                <span class="dot green" title="Expand"></span>
+            </div>
+            <div class="window-title">Console Output - Test Execution Results</div>
+            <div style="width: 50px;"></div> 
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover table-custom w-100">
+                <thead>
+                    <tr>
+                        <th class="ps-4">ID</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Input Data</th>
+                        <th>Expected</th>
+                        <th>Status</th>
+                        <th>Actual Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in tests_data %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark">{{ item.def.test_id }}</td>
+                        <td>
+                            <span class="badge bg-light text-secondary border">
+                                {{ item.def.test_type }}
+                            </span>
+                        </td>
+                        <td class="fw-500">{{ item.def.description }}</td>
+                        <td class="text-muted small fst-italic">{{ item.def.input_data }}</td>
+                        <td class="small text-secondary">{{ item.def.expected_result }}</td>
+                        
+                        <td>
+                            {% if item.result.status == 'PASS' %}
+                                <span class="badge-status bg-pass"><i class="fa-solid fa-check"></i> PASS</span>
+                            {% elif item.result.status == 'FAIL' %}
+                                <span class="badge-status bg-fail"><i class="fa-solid fa-xmark"></i> FAIL</span>
+                            {% elif item.result.status == 'ERROR' %}
+                                <span class="badge-status bg-fail"><i class="fa-solid fa-bug"></i> ERR</span>
+                            {% elif item.result.status == 'SKIP' %}
+                                <span class="badge-status bg-secondary text-white">SKIP</span>
+                            {% else %}
+                                <span class="badge-status bg-pending"><i class="fa-regular fa-clock"></i> WAIT</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="text-secondary small">
+                            {% if item.result.status == 'FAIL' or item.result.status == 'ERROR' %}
+                                <span class="text-danger fw-bold">{{ item.result.actual_result }}</span>
+                            {% elif item.result.status == 'PASS' %}
+                                <span class="text-success">{{ item.result.actual_result }}</span>
+                            {% else %}
+                                ...
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="text-center text-muted small mt-4">
+        &copy; 2024 MapBank Automation Team. Powered by Selenium & Django.
+    </div>
+
+</div>
+
+<script>
+    // Hàm 1: Chạy Test
+    function runTests(mode) {
+        // Disable nút
+        const btns = document.querySelectorAll('.btn-action');
+        btns.forEach(b => b.disabled = true);
+        
+        const overlay = document.getElementById('loading-overlay');
+        const overlayText = document.getElementById('loading-text');
+        overlay.style.display = 'flex';
+
+        // Thông báo
+        if (mode === 'selenium') {
+            overlayText.innerText = "Đang mở 10 cửa sổ Chrome...";
+            alert("⚠️ LƯU Ý:\n\nHệ thống sẽ bật 10 cửa sổ Chrome.\nVui lòng KHÔNG TẮT để kiểm tra kết quả.");
+        } else {
+            overlayText.innerText = "Đang chạy toàn bộ Test...";
+        }
+
+        // Gọi API
+        fetch(`/test-dashboard/run/?mode=${mode}`)
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === 'ok') {
+                    // === SỬA ĐOẠN NÀY ===
+                    // Nếu chạy mode selenium -> Reload lại trang với chế độ hiển thị Selenium
+                    if (mode === 'selenium') {
+                        window.location.href = "?view=selenium"; 
+                    } else {
+                        // Nếu chạy full -> Hiện tất cả
+                        window.location.href = "?view=all";
+                    }
+                } else {
+                    alert("Lỗi: " + JSON.stringify(data));
+                    location.reload(); 
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra!');
+                btns.forEach(b => b.disabled = false);
+                overlay.style.display = 'none';
+            });
+    }
+
+    // Hàm 2: Đóng hết trình duyệt
+    function closeAllBrowsers() {
+        if(!confirm("🛑 CẢNH BÁO:\n\nBạn có chắc muốn tắt TOÀN BỘ cửa sổ Chrome đang mở không?\nNếu bạn đang dùng Chrome để duyệt web, tab này cũng sẽ bị tắt.")) {
+            return;
+        }
+
+        const overlay = document.getElementById('loading-overlay');
+        document.getElementById('loading-text').innerText = "Đang dọn dẹp...";
+        overlay.style.display = 'flex';
+
+        fetch('/test-dashboard/close-browsers/')
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                overlay.style.display = 'none';
+            })
+            .catch(err => {
+                alert("Lỗi không gọi được lệnh tắt: " + err);
+                overlay.style.display = 'none';
+            });
+    }
+</script>
+</body>
+</html>

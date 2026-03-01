@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Đăng ký tài khoản</title>
+
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root{
+      --bg:#0f172a;           /* slate-900 */
+      --card:rgba(17,24,39,.6);
+      --ink:#e5e7eb;          /* gray-200 */
+      --muted:#94a3b8;        /* slate-400 */
+      --ring:#60a5fa;         /* blue-400 */
+      --primary:#2563eb;      /* blue-600 */
+      --primary-2:#7c3aed;    /* violet-600 */
+      --border:rgba(148,163,184,.25);
+      --danger:#ef4444;
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:'Inter',system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      color:var(--ink);
+      background: radial-gradient(1200px 800px at 10% 10%, #1d253a 0%, transparent 60%),
+                  radial-gradient(1000px 600px at 90% 20%, #1f114a 0%, transparent 60%),
+                  linear-gradient(180deg, var(--bg) 0%, #0b1220 100%);
+      display:grid; place-items:center; padding:24px;
+      overflow:hidden;
+    }
+
+    /* Decor blobs */
+    .blob, .blob2{
+      position:fixed; filter:blur(40px); opacity:.25; pointer-events:none; z-index:0;
+    }
+    .blob{
+      width:420px; height:420px; background:conic-gradient(from 90deg,#2563eb, #7c3aed, #06b6d4);
+      border-radius:50%; top:-120px; left:-120px; animation:float1 14s ease-in-out infinite;
+    }
+    .blob2{
+      width:520px; height:520px; background:conic-gradient(from 0deg,#22c55e, #06b6d4, #2563eb);
+      border-radius:50%; bottom:-160px; right:-160px; animation:float2 16s ease-in-out infinite;
+    }
+    @keyframes float1{ 0%,100%{transform:translate(0,0) rotate(0deg)} 50%{transform:translate(20px,10px) rotate(20deg)} }
+    @keyframes float2{ 0%,100%{transform:translate(0,0) rotate(0deg)} 50%{transform:translate(-10px,20px) rotate(-15deg)} }
+
+    .wrap{
+      width:min(980px, 96vw);
+      display:grid; grid-template-columns: 1.2fr 1fr;
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:0 30px 120px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+      overflow:hidden; position:relative; z-index:1;
+      min-height:520px;
+    }
+    @media (max-width:900px){ .wrap{ grid-template-columns: 1fr; } }
+
+    /* Left hero */
+    .hero{
+      position:relative; padding:42px; background:
+        radial-gradient(600px 320px at 25% 15%, rgba(124,58,237,.25), transparent 60%),
+        radial-gradient(700px 360px at 80% 85%, rgba(37,99,235,.25), transparent 60%),
+        linear-gradient(180deg, rgba(2,6,23,.6), rgba(2,6,23,.3));
+      border-right:1px solid var(--border);
+      display:flex; flex-direction:column; justify-content:space-between;
+    }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .brand .logo{
+      width:44px; height:44px; border-radius:12px;
+      background:conic-gradient(from 180deg, #2563eb, #7c3aed, #06b6d4);
+      box-shadow:0 6px 18px rgba(37,99,235,.5);
+      display:grid; place-items:center; color:white; font-weight:800;
+    }
+    .brand .name{ font-weight:800; font-size:18px; letter-spacing:.3px; }
+    .hero .headline{ margin-top:24px; font-size:28px; font-weight:800; line-height:1.2; }
+    .hero .sub{ color:var(--muted); margin-top:10px; font-size:14px; }
+    .hero .foot-note{ color:#cbd5e1; font-size:12px; opacity:.8; }
+
+    /* Right card */
+    .card{
+      padding:36px 30px; background:var(--card); backdrop-filter: blur(14px);
+      display:flex; flex-direction:column; justify-content:center; gap:14px;
+    }
+    .card h2{ margin:0 0 8px; font-size:24px; }
+    .card .caption{ color:var(--muted); font-size:13px; margin-bottom:6px; }
+
+    /* Keep Django form */
+    form { margin:0; }
+    form p{ margin:10px 0 14px; position:relative; }
+    form label{ display:inline-block; margin-bottom:8px; font-weight:600; font-size:13px; color:#cbd5e1; }
+    form input[type="text"],
+    form input[type="email"],
+    form input[type="password"]{
+      width:100%; padding:12px 44px 12px 12px; border-radius:12px;
+      background:rgba(2,6,23,.35); color:var(--ink);
+      border:1px solid rgba(148,163,184,.25);
+      outline:none; transition:border-color .18s, box-shadow .18s, background .18s, transform .06s;
+      font-size:15px;
+    }
+    form input:hover{ border-color:rgba(148,163,184,.38); }
+    form input:focus{
+      border-color:var(--ring);
+      box-shadow:0 0 0 4px rgba(96,165,250,.25);
+      background:rgba(2,6,23,.55);
+    }
+    form input::placeholder{ color:#95a1b0; }
+
+    /* Password toggles */
+    .pw-toggle{
+      position:absolute; right:10px; bottom:12px;
+      border:1px solid rgba(148,163,184,.25);
+      background:rgba(2,6,23,.4);
+      color:#cbd5e1; border-radius:10px; padding:6px 8px; cursor:pointer;
+      font-size:12px; font-weight:800; letter-spacing:.3px;
+    }
+    .pw-toggle:hover{ background:rgba(2,6,23,.6); }
+
+    /* Password meter */
+    .pw-meter{ margin-top:8px; }
+    .pw-bars{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+    .pw-bar{ height:8px; border-radius:6px; background:rgba(148,163,184,.25); }
+    .pw-bar.active-1{ background:#ef4444; }   /* yếu */
+    .pw-bar.active-2{ background:#f59e0b; }   /* trung bình */
+    .pw-bar.active-3{ background:#10b981; }   /* khá */
+    .pw-bar.active-4{ background:#22c55e; }   /* mạnh */
+    .pw-hint{ font-size:12px; color:#cbd5e1; margin-top:6px; opacity:.9; }
+
+    /* Button */
+    .btn{
+      width:100%; padding:12px 14px; border:none; border-radius:12px; cursor:pointer;
+      font-weight:800; font-size:15px; letter-spacing:.3px; color:white;
+      background:linear-gradient(135deg, var(--primary), var(--primary-2));
+      box-shadow:0 14px 30px rgba(37,99,235,.35);
+      transition:transform .06s ease, filter .2s ease, box-shadow .2s ease;
+      margin-top:4px;
+    }
+    .btn:hover{ filter:brightness(1.05); box-shadow:0 16px 38px rgba(124,58,237,.35); }
+    .btn:active{ transform:translateY(1px); }
+    .btn .spinner{
+      width:16px; height:16px; border:2px solid rgba(255,255,255,.35);
+      border-top-color:white; border-radius:50%; display:inline-block; margin-right:8px;
+      animation:spin .8s linear infinite; vertical-align:-3px;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+
+    .alt{
+      margin-top:10px; text-align:center; font-size:14px; color:#cbd5e1;
+    }
+    .alt a{ color:#93c5fd; text-decoration:none; font-weight:700; }
+    .alt a:hover{ text-decoration:underline; }
+
+    /* Django error styles */
+    .errorlist{
+      margin:6px 0 0; padding:0; list-style:none; color:#fecaca; font-size:13px;
+    }
+    .errorlist li{ margin:4px 0; }
+    .nonfield{ background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.35);
+      color:#fecaca; padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:8px; }
+
+    /* Django messages (optional) */
+    .messages{ margin:0 0 8px; padding:0; list-style:none; }
+    .messages li{ padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:8px; border:1px solid var(--border); }
+    .messages li.info{ background:rgba(59,130,246,.1); border-color:rgba(59,130,246,.35); color:#bfdbfe;}
+    .messages li.success{ background:rgba(34,197,94,.1); border-color:rgba(34,197,94,.35); color:#bbf7d0;}
+    .messages li.warning{ background:rgba(250,204,21,.1); border-color:rgba(250,204,21,.35); color:#fde68a;}
+    .messages li.error{ background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.35); color:#fecaca;}
+
+    /* Ẩn help_text mặc định của Django (các dòng "Your password…") */
+form .helptext { display:none !important; }
+
+  </style>
+</head>
+<body>
+  <div class="blob" aria-hidden="true"></div>
+  <div class="blob2" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <!-- LEFT -->
+    <div class="hero">
+      <div>
+        <div class="brand">
+          <div class="logo">BK</div>
+          <div class="name">Bank Map Suite</div>
+        </div>
+        <div class="headline">Tạo tài khoản mới 🚀</div>
+        <div class="sub">Đăng ký để quản lý dữ liệu Ngân hàng / Chi nhánh / ATM với giao diện tối, hiệu ứng mượt và các công cụ mạnh mẽ.</div>
+      </div>
+      <div class="foot-note">© {{ year|default:2025 }} Bank Map Suite. All rights reserved.</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="card">
+      <h2>Đăng ký tài khoản</h2>
+      <div class="caption">Điền thông tin bên dưới để bắt đầu.</div>
+
+      <!-- Messages (nếu dùng Django messages) -->
+      {% if messages %}
+        <ul class="messages">
+          {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <!-- Non-field errors -->
+      {% if form.non_field_errors %}
+        <div class="nonfield">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <form method="POST" id="register-form" novalidate>
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <!-- Meter (tự ẩn/hiện bằng JS nếu có trường password) -->
+        <div id="pw-meter" class="pw-meter" style="display:none;">
+          <div class="pw-bars">
+            <div class="pw-bar" id="bar1"></div>
+            <div class="pw-bar" id="bar2"></div>
+            <div class="pw-bar" id="bar3"></div>
+            <div class="pw-bar" id="bar4"></div>
+          </div>
+          <div class="pw-hint" id="pw-hint">Mật khẩu: …</div>
+        </div>
+
+        <button type="submit" class="btn" id="submit-btn">Đăng ký</button>
+      </form>
+
+      <div class="alt">
+        Đã có tài khoản?
+        <a href="{% url 'login' %}">Đăng nhập</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Thêm nút Hiện/Ẩn cho tất cả input type=password (UserCreationForm thường có password1 & password2)
+    (function(){
+      const pwInputs = document.querySelectorAll('form input[type="password"]');
+      pwInputs.forEach((pw)=>{
+        const p = pw.closest('p');
+        if(!p) return;
+        p.style.position='relative';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pw-toggle';
+        btn.textContent = 'Hiện';
+        btn.addEventListener('click', ()=>{
+          const isPw = pw.type === 'password';
+          pw.type = isPw ? 'text' : 'password';
+          btn.textContent = isPw ? 'Ẩn' : 'Hiện';
+          pw.focus();
+        });
+        p.appendChild(btn);
+      });
+    })();
+
+    // Thanh đo độ mạnh mật khẩu cho field đầu tiên tìm thấy
+    (function(){
+      const meterWrap = document.getElementById('pw-meter');
+      const bars = [ 'bar1','bar2','bar3','bar4' ].map(id=>document.getElementById(id));
+      const hint = document.getElementById('pw-hint');
+
+      // tìm ô mật khẩu chính (password1 hoặc password)
+      const pw = document.querySelector('input[name="password1"], input[type="password"]');
+      if(!pw) return;
+
+      meterWrap.style.display = 'block';
+
+      function scorePassword(s){
+        if(!s) return 0;
+        let score = 0;
+        const rules = [
+          /.{8,}/,          // >= 8 ký tự
+          /[A-Z]/,          // có chữ hoa
+          /[a-z]/,          // có chữ thường
+          /[0-9]/,          // có số
+          /[^A-Za-z0-9]/,   // có ký tự đặc biệt
+        ];
+        rules.forEach(r=>{ if(r.test(s)) score++; });
+        if(s.length >= 12) score++;           // cộng thêm nếu dài >= 12
+        if(/([A-Za-z].*[0-9])|([0-9].*[A-Za-z])/.test(s)) score++; // trộn chữ & số
+        // chuẩn hóa về 0..4
+        return Math.min(4, Math.floor(score/2));
+      }
+
+      function render(score){
+        bars.forEach(b=>{
+          b.className = 'pw-bar';
+        });
+        for(let i=0;i<score;i++){
+          bars[i].classList.add(`active-${Math.max(1,score)}`);
+        }
+        const texts = ['Rất yếu','Yếu','Trung bình','Khá','Mạnh'];
+        // score 0..4 -> texts[score]
+        hint.textContent = 'Độ mạnh mật khẩu: ' + texts[score];
+      }
+
+      render(0);
+      pw.addEventListener('input', ()=> render(scorePassword(pw.value||'')));
+    })();
+
+    // Spinner khi submit
+    (function(){
+      const form = document.getElementById('register-form');
+      const btn  = document.getElementById('submit-btn');
+      if(!form || !btn) return;
+      form.addEventListener('submit', ()=>{
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Đang tạo tài khoản...';
+      });
+    })();
+  </script>
+</body>
+</html>
