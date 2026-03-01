@@ -37,4 +37,4 @@ https://github.com/user-attachments/assets/77fb6d29-ecea-4ab2-877f-823e9383c90a
 1. **Clone the repository:**
    ```bash
    git clone [https://github.com/thanhnguyen221/BankAutoTest.git](https://github.com/thanhnguyen221/BankAutoTest.git)
-   cd BankAutoTest
+   cd bank_project 
