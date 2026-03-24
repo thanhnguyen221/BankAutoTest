@@ -37,8 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'map',  # Đảm bảo rằng app 'map' được thêm vào
-    'users',  # Nếu app users có trong dự án của bạn
+    'map',  
+    'users',
     'test_dashboard',
 
 ]
@@ -145,7 +145,7 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:8000',
-    # nếu bạn test bằng IP LAN: thêm dòng dưới cho đúng IP/port của bạn
+  
     # 'http://192.168.1.10:8000',
 ]
 
